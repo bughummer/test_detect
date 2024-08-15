@@ -66,21 +66,18 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
         return
 
     num_wells = len(selected_wells)
-
-    # List to store detected zones
-    results = []
+    total_subplots = 4  # Fixed number of total subplots to fill the space
+    results_df = pd.DataFrame(columns=['Well', 'Formation', 'Start TVD SCS', 'End TVD SCS', 'Start MD', 'End MD', 'Thickness'])
 
     # Determine column widths based on the number of wells
     if num_wells == 1:
-        # For a single well, add an invisible subplot to control the width
-        fig = make_subplots(rows=1, cols=2, shared_yaxes=True, column_widths=[0.25, 0.75])
-    elif num_wells < 4:
-        # For 2 or 3 wells, assign a fixed width to each subplot
-        fig = make_subplots(rows=1, cols=num_wells, shared_yaxes=True, column_widths=[0.25] * num_wells)
+        fig = make_subplots(rows=1, cols=total_subplots, shared_yaxes=True, column_widths=[0.25] * (total_subplots - num_wells) + [0.75])
+    elif num_wells == 2:
+        fig = make_subplots(rows=1, cols=total_subplots, shared_yaxes=True, column_widths=[0.25] * (total_subplots - num_wells) + [0.375, 0.375])
+    elif num_wells == 3:
+        fig = make_subplots(rows=1, cols=total_subplots, shared_yaxes=True, column_widths=[0.25] * (total_subplots - num_wells) + [0.25] * num_wells)
     else:
-        # For 4 or more wells, distribute the widths evenly
-        column_widths = [1.0 / num_wells] * num_wells
-        fig = make_subplots(rows=1, cols=num_wells, shared_yaxes=True, column_widths=column_widths)
+        fig = make_subplots(rows=1, cols=num_wells, shared_yaxes=True, column_widths=[1.0 / num_wells] * num_wells)
 
     for index, well_name in enumerate(selected_wells):
         # Load the data
@@ -114,44 +111,46 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
             if well_data_smoothed[i + look_back] < combined_predictions[i]:
                 if not in_zone:
                     start_depth = well_data['tvd_scs'].iloc[i + look_back]
-                    start_md = well_data['md'].iloc[i + look_back]  # Start MD value
+                    start_md = well_data['md'].iloc[i + look_back]  # Get the start MD value
                     in_zone = True
             else:
                 if in_zone:
                     end_depth = well_data['tvd_scs'].iloc[i + look_back - 1]
-                    end_md = well_data['md'].iloc[i + look_back - 1]  # End MD value
+                    end_md = well_data['md'].iloc[i + look_back - 1]  # Get the end MD value
                     thickness = end_depth - start_depth
                     difference = np.abs(combined_predictions[i - 1] - well_data_smoothed[i + look_back - 1])
                     if thickness >= thickness_threshold:  # Only consider zones with sufficient thickness
-                        zones_of_interest.append((start_depth, end_depth, start_md, end_md, difference, thickness))
+                        zones_of_interest.append((start_md, end_md, start_depth, end_depth, difference, thickness))
                     in_zone = False
 
         # Merge close zones
         merged_zones = []
         if zones_of_interest:
-            current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff, _ = zones_of_interest[0]
+            current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff, _ = zones_of_interest[0]
 
-            for start_depth, end_depth, start_md, end_md, diff, thickness in zones_of_interest[1:]:
+            for start_md, end_md, start_depth, end_depth, diff, thickness in zones_of_interest[1:]:
                 if start_depth - current_end_depth <= merge_threshold:
                     current_end_depth = end_depth
                     current_end_md = end_md
                     current_diff = max(current_diff, diff)  # Max difference in the zone
                 else:
-                    merged_zones.append((current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff))
-                    current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff = start_depth, end_depth, start_md, end_md, diff
+                    merged_zones.append((current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff))
+                    current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff = start_md, end_md, start_depth, end_depth, diff
 
-            merged_zones.append((current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff))
+            merged_zones.append((current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff))
 
-        # Store the merged zones in the results list
-        for idx, (start_depth, end_depth, start_md, end_md, diff) in enumerate(merged_zones):
-            results.append({
+        # Save results to DataFrame
+        for idx, (start_md, end_md, start_depth, end_depth, diff) in enumerate(merged_zones):
+            thickness = end_depth - start_depth
+            results_df = results_df.append({
                 'Well': well_name,
-                'Formation Number': idx + 1,
+                'Formation': idx + 1,
                 'Start TVD SCS': start_depth,
                 'End TVD SCS': end_depth,
                 'Start MD': start_md,
-                'End MD': end_md
-            })
+                'End MD': end_md,
+                'Thickness': thickness
+            }, ignore_index=True)
 
         # Plot smoothed data
         fig.add_trace(go.Scatter(
@@ -172,21 +171,14 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
         ), row=1, col=index+1)
 
         # Highlight zones of interest on each subplot correctly
-        for start_depth, end_depth, start_md, end_md, diff in merged_zones:
+        for start, end, diff in merged_zones:
             color_intensity = 0.5
             color = 'yellow'
             fig.add_shape(type="rect",
                           x0=0, x1=150,   # Use the range of the GR log
-                          y0=start_depth, y1=end_depth,
+                          y0=start, y1=end,
                           fillcolor=color, opacity=color_intensity, line_width=0,
                           row=1, col=index+1)
-
-
-    # Convert results list to DataFrame
-    results_df = pd.DataFrame(results)
-
-    # Display the DataFrame with detected formations
-    st.dataframe(results_df)
 
     # Final layout
     fig.update_layout(
@@ -200,6 +192,10 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
     )
 
     st.plotly_chart(fig)
+
+    # Display results DataFrame
+    st.subheader('Detected Formations:')
+    st.dataframe(results_df)
 
 # Streamlit app interface
 def streamlit_app():
