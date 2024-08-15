@@ -67,8 +67,8 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
 
     num_wells = len(selected_wells)
 
-    # Create a DataFrame to store the detected zones
-    results_df = pd.DataFrame(columns=['Well', 'Formation Number', 'Start TVD SCS', 'End TVD SCS', 'Start MD', 'End MD'])
+    # List to store detected zones
+    results = []
 
     # Determine column widths based on the number of wells
     if num_wells == 1:
@@ -142,16 +142,16 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
 
             merged_zones.append((current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff))
 
-        # Store the merged zones in the DataFrame
+        # Store the merged zones in the results list
         for idx, (start_depth, end_depth, start_md, end_md, diff) in enumerate(merged_zones):
-            results_df = results_df.append({
+            results.append({
                 'Well': well_name,
                 'Formation Number': idx + 1,
                 'Start TVD SCS': start_depth,
                 'End TVD SCS': end_depth,
                 'Start MD': start_md,
                 'End MD': end_md
-            }, ignore_index=True)
+            })
 
         # Plot smoothed data
         fig.add_trace(go.Scatter(
@@ -180,7 +180,10 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
                           y0=start, y1=end,
                           fillcolor=color, opacity=color_intensity, line_width=0,
                           row=1, col=index+1)
-    
+
+    # Convert results list to DataFrame
+    results_df = pd.DataFrame(results)
+
     # Display the DataFrame with detected formations
     st.dataframe(results_df)
 
