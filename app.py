@@ -126,7 +126,7 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
         # Merge close zones
         merged_zones = []
         if zones_of_interest:
-            current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff, _ = zones_of_interest[0]
+            current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff = zones_of_interest[0][:5]
 
             for start_md, end_md, start_depth, end_depth, diff, thickness in zones_of_interest[1:]:
                 if start_depth - current_end_depth <= merge_threshold:
@@ -213,7 +213,7 @@ def streamlit_app():
         selected_wells = st.multiselect("Select wells", wells)
         # Set parameters with sliders
         look_back = 50
-        mean_multiplier = 1 #st.slider("Mean Multiplier", min_value=0.1, max_value=2.0, value=0.5, step=0.1)
+        mean_multiplier = 1
         merge_threshold = st.number_input("Merge zones that have distance between them less than:", min_value=0, max_value=50, value=1, step=1)
         thickness_threshold = st.number_input("Ignore formations that have thickness less than:", min_value=0, max_value=50, value=1, step=1)
 
