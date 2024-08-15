@@ -66,6 +66,7 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
         return
 
     num_wells = len(selected_wells)
+    results = []
     total_subplots = 4  # Fixed number of total subplots to fill the space
 
     # Determine column widths based on the number of wells
