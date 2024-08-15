@@ -110,30 +110,45 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
             if well_data_smoothed[i + look_back] < combined_predictions[i]:
                 if not in_zone:
                     start_depth = well_data['tvd_scs'].iloc[i + look_back]
+                    start_md = well_data['md'].iloc[i + look_back]  # Start MD value
                     in_zone = True
             else:
                 if in_zone:
                     end_depth = well_data['tvd_scs'].iloc[i + look_back - 1]
+                    end_md = well_data['md'].iloc[i + look_back - 1]  # End MD value
                     thickness = end_depth - start_depth
                     difference = np.abs(combined_predictions[i - 1] - well_data_smoothed[i + look_back - 1])
                     if thickness >= thickness_threshold:  # Only consider zones with sufficient thickness
-                        zones_of_interest.append((start_depth, end_depth, difference, thickness))
+                        zones_of_interest.append((start_depth, end_depth, start_md, end_md, difference, thickness))
                     in_zone = False
 
         # Merge close zones
         merged_zones = []
         if zones_of_interest:
-            current_start, current_end, current_diff, _ = zones_of_interest[0]
+            current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff, _ = zones_of_interest[0]
 
-            for start_depth, end_depth, diff, thickness in zones_of_interest[1:]:
-                if start_depth - current_end <= merge_threshold:
-                    current_end = end_depth
+            for start_depth, end_depth, start_md, end_md, diff, thickness in zones_of_interest[1:]:
+                if start_depth - current_end_depth <= merge_threshold:
+                    current_end_depth = end_depth
+                    current_end_md = end_md
                     current_diff = max(current_diff, diff)  # Max difference in the zone
                 else:
-                    merged_zones.append((current_start, current_end, current_diff))
-                    current_start, current_end, current_diff = start_depth, end_depth, diff
+                    merged_zones.append((current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff))
+                    current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff = start_depth, end_depth, start_md, end_md, diff
 
-            merged_zones.append((current_start, current_end, current_diff))
+            merged_zones.append((current_start_depth, current_end_depth, current_start_md, current_end_md, current_diff))
+
+        # Store the merged zones in the results list
+        for idx, (start_depth, end_depth, start_md, end_md, diff) in enumerate(merged_zones):
+            results.append({
+                'Well': well_name,
+                'Formation Number': idx + 1,
+                'Start TVD SCS': start_depth,
+                'End TVD SCS': end_depth,
+                'Start MD': start_md,
+                'End MD': end_md
+            })
+
 
         # Plot smoothed data
         fig.add_trace(go.Scatter(
@@ -163,6 +178,14 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
                           fillcolor=color, opacity=color_intensity, line_width=0,
                           row=1, col=index+1)
 
+
+    # Convert results list to DataFrame
+    results_df = pd.DataFrame(results)
+
+    # Display the DataFrame with detected formations
+    st.dataframe(results_df)
+
+    
     # Final layout
     fig.update_layout(
         title=f'Formation tops detection based on GR log',
