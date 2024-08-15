@@ -67,7 +67,7 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
 
     num_wells = len(selected_wells)
     total_subplots = 4  # Fixed number of total subplots to fill the space
-    results_df = pd.DataFrame(columns=['Well', 'Formation', 'Start TVD SCS', 'End TVD SCS', 'Start MD', 'End MD', 'Thickness'])
+    results_list = []
 
     # Determine column widths based on the number of wells
     if num_wells == 1:
@@ -139,10 +139,10 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
 
             merged_zones.append((current_start_md, current_end_md, current_start_depth, current_end_depth, current_diff))
 
-        # Save results to DataFrame
+        # Save results to list
         for idx, (start_md, end_md, start_depth, end_depth, diff) in enumerate(merged_zones):
             thickness = end_depth - start_depth
-            results_df = results_df.append({
+            results_list.append({
                 'Well': well_name,
                 'Formation': idx + 1,
                 'Start TVD SCS': start_depth,
@@ -150,7 +150,7 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
                 'Start MD': start_md,
                 'End MD': end_md,
                 'Thickness': thickness
-            }, ignore_index=True)
+            })
 
         # Plot smoothed data
         fig.add_trace(go.Scatter(
@@ -193,7 +193,8 @@ def main(df, selected_wells, look_back=50, mean_multiplier=0.5, merge_threshold=
 
     st.plotly_chart(fig)
 
-    # Display results DataFrame
+    # Convert results list to DataFrame and display
+    results_df = pd.DataFrame(results_list)
     st.subheader('Detected Formations:')
     st.dataframe(results_df)
 
